@@ -429,24 +429,20 @@ import { exec } from 'child_process';
 function runHourlyMaintenance() {
   console.log('[Maintenance] Iniciando tarea de mantenimiento por hora...');
 
-  exec('git pull', (error, stdout, stderr) => {
+  exec('git pull && npm install && npm update', (error, stdout, stderr) => {
+    console.log('[Maintenance] Proceso de actualización finalizado.');
     if (error) {
-      console.error('[Maintenance] Error al ejecutar git pull:', error.message);
-      // A pesar del error, intentamos reiniciar para mantener el bot activo.
-      console.log('[Maintenance] Error en la actualización, procediendo a reiniciar de todos modos...');
-      setTimeout(() => process.exit(0), 2000);
-      return;
+      console.error('[Maintenance] Error durante la actualización:', error.message);
+    }
+    if (stdout) {
+      console.log('[Maintenance] Salida de la actualización:\n', stdout);
+    }
+    if (stderr) {
+      console.error('[Maintenance] Errores durante la actualización:\n', stderr);
     }
 
-    if (stdout.includes("Already up to date.") || stdout.includes("Ya está actualizado.")) {
-      console.log('[Maintenance] El bot ya está actualizado. Realizando ping y reinicio programado.');
-      // El "ping" es este mismo log. El objetivo es mantener el proceso activo.
-      setTimeout(() => process.exit(0), 2000); // Reinicia para refrescar la memoria.
-    } else {
-      console.log('[Maintenance] Actualización encontrada. Reiniciando para aplicar cambios...');
-      // El comando de actualización ya se encarga del reinicio, pero lo forzamos aquí por si acaso.
-      setTimeout(() => process.exit(0), 2000);
-    }
+    console.log('[Maintenance] Reiniciando el bot para aplicar cambios...');
+    setTimeout(() => process.exit(0), 2000);
   });
 }
 
