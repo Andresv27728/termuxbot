@@ -1,6 +1,7 @@
 import fetch from 'node-fetch';
 import fs from 'fs';
-import { fileTypeFromBuffer } from 'file-type';
+import pkg from 'file-type';
+const { fileTypeFromBuffer } = pkg;
 import FormData from 'form-data';
 
 const uploadCommand = {
