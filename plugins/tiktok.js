@@ -57,7 +57,7 @@ const tiktokCommand = {
         }
       }
 
-      if (!videoUrl && (!images || images.length === 0)) {
+      if ((!videoUrl || videoUrl.length === 0) && (!images || images.length === 0)) {
         await sock.sendMessage(msg.key.remoteJid, { react: { text: '❌', key: msg.key } });
         return sock.sendMessage(msg.key.remoteJid, { text: '❌ No se pudo descargar el contenido de TikTok.' }, { quoted: msg });
       }
