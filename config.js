@@ -10,6 +10,9 @@ const config = {
   // El nombre del propietario del bot.
   ownerName: "𝕐𝕆 𝕊𝕆𝕐 𝕐𝕆 WA.ME/573133374132?TEXT=HOLA",
 
+  // Activa o desactiva el sistema anti-spam.
+  antiSpamEnabled: true,
+
   // Tasa de impuestos para la economía (ej. 0.10 para 10%)
   taxRate: 0.19,
 
