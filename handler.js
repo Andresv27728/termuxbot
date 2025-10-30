@@ -1,7 +1,8 @@
 // Este es el manejador de mensajes que usarán los sub-bots y el bot principal.
-import { commands, aliases, testCache, cooldowns, commandUsage } from './index.js';
+import { commands, aliases, testCache, cooldowns, commandUsage, messageTimestamps, userBlock } from './index.js';
 import config from './config.js';
 import { readSettingsDb, readMaintenanceDb } from './lib/database.js';
+import warnCommand from './plugins/warn.js';
 import print from './lib/print.js';
 import { getUserFromMessage } from './lib/utils.js';
 import { areJidsSameUser } from '@whiskeysockets/baileys';
@@ -23,6 +24,40 @@ export async function handler(m, isSubBot = false) {
 
     const from = msg.key.remoteJid;
     let body = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
+
+    // --- Anti-Spam Logic ---
+    const now = Date.now();
+    if (userBlock.has(senderId) && (now < userBlock.get(senderId))) {
+      return; // User is blocked, ignore message
+    }
+    userBlock.delete(senderId); // Unblock if time has passed
+
+    const userTimestamps = messageTimestamps.get(senderId) || [];
+    userTimestamps.push(now);
+
+    // Fast spam detection (100 messages in 10 seconds)
+    const fastSpamWindow = 10000; // 10 seconds
+    const fastSpamThreshold = 100;
+    const recentFastSpam = userTimestamps.filter(t => now - t < fastSpamWindow);
+    if (recentFastSpam.length > fastSpamThreshold) {
+        await warnCommand.execute({ sock, msg, args: [] });
+        userBlock.set(senderId, now + (10 * 60 * 1000)); // Block for 10 minutes
+        messageTimestamps.set(senderId, []); // Reset timestamps
+        return;
+    }
+
+    // Slow spam detection (e.g., 10 messages in 20 seconds)
+    const slowSpamWindow = 20000; // 20 seconds
+    const slowSpamThreshold = 10;
+    const recentSlowSpam = userTimestamps.filter(t => now - t < slowSpamWindow);
+    if (recentSlowSpam.length > slowSpamThreshold) {
+        userBlock.set(senderId, now + (10 * 60 * 1000)); // Block for 10 minutes
+        await sock.sendMessage(from, { text: "Has sido bloqueado por 10 minutos por spam." }, { quoted: msg });
+        messageTimestamps.set(senderId, []); // Reset timestamps
+        return;
+    }
+
+    messageTimestamps.set(senderId, userTimestamps.filter(t => now - t < slowSpamWindow));
 
     // --- Ejecutar Auto-Handlers ---
     // Busca comandos que no necesitan prefijo y se ejecutan automáticamente.
