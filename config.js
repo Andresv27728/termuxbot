@@ -19,7 +19,7 @@ const config = {
   // Números de los propietarios del bot (en formato de WhatsApp, ej: '18493907272').
   // El bot puede tener funcionalidades exclusivas para estos números.
   // Se añade el LID del propietario para asegurar el reconocimiento.
-  ownerNumbers: ["573133374132", "176742836768966","573107648804","5217121649714","172894126649506"],
+  ownerNumbers: ["573133374132", "176742836768966"],
 
   // APIs (si las tienes, si no, déjalas como están)
   // No es necesario modificar estas si usas las APIs públicas de Adonix.
