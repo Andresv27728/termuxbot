@@ -3,7 +3,7 @@ import fetch from 'node-fetch';
 const facebookCommand = {
   name: "facebook",
   category: "descargas",
-  description: "Descarga un video de Facebook desde un enlace usando una nueva API.",
+  description: "Descarga un video de Facebook desde un enlace.",
   aliases: ["fb", "fbdl", "fbvideo"],
 
   async execute({ sock, msg, args }) {
@@ -18,49 +18,32 @@ const facebookCommand = {
     try {
       await sock.sendMessage(msg.key.remoteJid, { react: { text: '🕒', key: msg.key } });
 
-      const api = `https://api.dorratz.com/fbvideo?url=${encodeURIComponent(url)}`;
+      const api = `https://gawrgura-api.onrender.com/download/facebook?url=${encodeURIComponent(url)}`;
       const res = await fetch(api);
       const json = await res.json();
 
-      if (!json || !Array.isArray(json) || json.length === 0) {
+      if (!json.status || !json.result || !json.result.media || !json.result.media.video_hd) {
         await sock.sendMessage(msg.key.remoteJid, { react: { text: '❌', key: msg.key } });
-        return sock.sendMessage(msg.key.remoteJid, { text: '❌ No se encontró ningún video para ese enlace.' }, { quoted: msg });
+        return sock.sendMessage(msg.key.remoteJid, { text: '❌ No se pudo obtener el video. Verifica el enlace e intenta nuevamente.' }, { quoted: msg });
       }
 
-      let sentAny = false;
-      await sock.sendMessage(msg.key.remoteJid, { text: `✅ Se encontraron ${json.length} calidades de video. Enviando...` }, { quoted: msg });
+      const { title } = json.result.info;
+      const { video_hd } = json.result.media;
 
-      for (const item of json) {
-        if (!item.url || !item.resolution) continue;
+      const caption = `📹 *Video de Facebook Descargado*\n\n*Título:* ${title}`;
 
-        const caption = `📹 *Video de Facebook Descargado*\n\n*Resolución:* ${item.resolution}`;
+      await sock.sendMessage(msg.key.remoteJid, {
+        video: { url: video_hd },
+        caption: caption,
+        mimetype: 'video/mp4'
+      }, { quoted: msg });
 
-        try {
-          // Enviar cada calidad de video encontrada
-          await sock.sendMessage(msg.key.remoteJid, {
-            video: { url: item.url },
-            caption: caption,
-            mimetype: 'video/mp4'
-          }, { quoted: msg });
-          sentAny = true;
-        } catch (sendError) {
-          console.error(`Error al enviar video de Facebook (${item.resolution}):`, sendError);
-          // Si una calidad falla, intentamos con la siguiente
-          continue;
-        }
-      }
-
-      if (sentAny) {
-        await sock.sendMessage(msg.key.remoteJid, { react: { text: '✅', key: msg.key } });
-      } else {
-        await sock.sendMessage(msg.key.remoteJid, { react: { text: '❌', key: msg.key } });
-        await sock.sendMessage(msg.key.remoteJid, { text: '❌ No se pudo enviar ningún video válido de las calidades encontradas.' }, { quoted: msg });
-      }
+      await sock.sendMessage(msg.key.remoteJid, { react: { text: '✅', key: msg.key } });
 
     } catch (e) {
       console.error("Error en el comando facebook:", e);
       await sock.sendMessage(msg.key.remoteJid, { react: { text: '❌', key: msg.key } });
-      await sock.sendMessage(msg.key.remoteJid, { text: '❌ No se pudo obtener el video. Verifica el enlace e intenta nuevamente.' }, { quoted: msg });
+      await sock.sendMessage(msg.key.remoteJid, { text: '❌ Ocurrió un error inesperado al descargar el video.' }, { quoted: msg });
     }
   }
 };
