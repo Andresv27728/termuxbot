@@ -1,132 +1,127 @@
-import axios from 'axios';
-
-async function obtenerTokenYCookie() {
-  const res = await axios.get('https://tmate.cc/id', {
-    headers: {
-      'User-Agent': 'Mozilla/5.0'
-    }
-  });
-
-  const cookie = res.headers['set-cookie']?.map(c => c.split(';')[0]).join('; ') || '';
-  const tokenMatch = res.data.match(/<input[^>]+name="token"[^>]+value="([^"]+)"/i);
-  const token = tokenMatch?.[1];
-  if (!token) throw new Error('*[❗] No se encontró el token*');
-
-  return { token, cookie };
-}
-
-async function descargarTikTok(urlTikTok) {
-  const { token, cookie } = await obtenerTokenYCookie();
-
-  const params = new URLSearchParams();
-  params.append('url', urlTikTok);
-  params.append('token', token);
-
-  const res = await axios.post('https://tmate.cc/action', params.toString(), {
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'User-Agent': 'Mozilla/5.0',
-      'Referer': 'https://tmate.cc/id',
-      'Origin': 'https://tmate.cc',
-      'Cookie': cookie
-    }
-  });
-
-  const html = res.data?.data;
-  if (!html) throw new Error('*[❗] No se encontraron datos en la respuesta*');
-
-  const titleMatch = html.match(/<h1[^>]*>(.*?)<\/h1>/i);
-  const titulo = titleMatch?.[1]?.replace(/<[^>]+>/g, '').trim() || 'Sin título';
-
-  const matches = [...html.matchAll(/<a[^>]+href="(https:\/\/[^"]+)"[^>]*>\s*<span>\s*<span>([^<]*)<\/span><\/span><\/a>/gi)];
-  const vistos = new Set();
-  const links = matches
-    .map(([_, href, label]) => ({ href, label: label.trim() }))
-    .filter(({ href }) => !href.includes('play.google.com') && !vistos.has(href) && vistos.add(href));
-
-  const enlacesMp4 = links.filter(v => /download without watermark/i.test(v.label));
-  const enlaceMp3 = links.find(v => /download mp3 audio/i.test(v.label));
-
-  if (enlacesMp4.length > 0) {
-    return {
-      tipo: 'video',
-      titulo,
-      enlacesMp4,
-      enlaceMp3
-    };
-  }
-
-  const imageMatches = [...html.matchAll(/<img[^>]+src="(https:\/\/tikcdn\.app\/a\/images\/[^"]+)"/gi)];
-  const enlacesImagenes = [...new Set(imageMatches.map(m => m[1]))];
-
-  if (enlacesImagenes.length > 0) {
-    return {
-      tipo: 'imagen',
-      titulo,
-      imagenes: enlacesImagenes,
-      enlaceMp3
-    };
-  }
-
-  throw new Error('*[❗] No hubo respuesta, puede que el enlace sea incorrecto*');
-}
+import fetch from 'node-fetch';
 
 const tiktokCommand = {
   name: 'tiktok',
   category: 'descargas',
-  description: 'Descarga videos o imágenes de TikTok sin marca de agua.',
+  description: 'Descarga videos de TikTok o busca videos por texto.',
   aliases: ['tt', 'tiktokdl'],
 
   async execute({ sock, msg, args }) {
+    if (!args[0]) {
+      return sock.sendMessage(msg.key.remoteJid, { text: '*[❗] Por favor, ingresa un enlace de TikTok o texto para buscar...*' }, { quoted: msg });
+    }
+
+    const query = args.join(' ');
+    const isUrl = query.includes('tiktok.com');
+
+    await sock.sendMessage(msg.key.remoteJid, { react: { text: '⏳', key: msg.key } });
+
+    if (isUrl) {
+      await this.handleDownload(sock, msg, query);
+    } else {
+      await this.handleSearch(sock, msg, query);
+    }
+  },
+
+  async handleDownload(sock, msg, url) {
     try {
-      if (!args[0]) {
-        return sock.sendMessage(msg.key.remoteJid, { text: '*[❗] Por favor, ingresa un enlace de TikTok...*' }, { quoted: msg });
-      }
+      let videoUrl, audioUrl, images;
 
-      const url = args[0];
-      if (!url.includes('tiktok.com')) {
-        return sock.sendMessage(msg.key.remoteJid, { text: '*[❗] El enlace debe ser de TikTok*' }, { quoted: msg });
-      }
-
-      await sock.sendMessage(msg.key.remoteJid, { react: { text: '⏳', key: msg.key } });
-
-      const resultado = await descargarTikTok(url);
-
-      if (resultado.tipo === 'video') {
-        if (resultado.enlacesMp4.length > 0) {
-          const videoUrl = resultado.enlacesMp4[0].href;
-
-          await sock.sendMessage(msg.chat, {
-            video: { url: videoUrl }
-          }, { quoted: msg });
-
-          if (resultado.enlaceMp3) {
-            await sock.sendMessage(msg.chat, {
-              audio: { url: resultado.enlaceMp3.href }
-            }, { quoted: msg });
-          }
+      // --- Primary API ---
+      try {
+        const api1 = `https://gawrgura-api.onrender.com/download/tiktok?url=${encodeURIComponent(url)}`;
+        const res1 = await fetch(api1);
+        const json1 = await res1.json();
+        if (json1.status && json1.result) {
+          videoUrl = json1.result.video_nowm;
+          audioUrl = json1.result.audio_url;
+          images = json1.result.slides;
         }
-      } else if (resultado.tipo === 'imagen') {
-        if (resultado.imagenes.length > 0) {
-          for (let i = 0; i < resultado.imagenes.length; i++) {
-            const imageUrl = resultado.imagenes[i];
+      } catch (e) {
+        console.error("TikTok API v1 failed:", e);
+      }
 
-            await sock.sendMessage(msg.chat, {
-              image: { url: imageUrl }
-            }, { quoted: msg });
+      // --- Fallback API ---
+      if (!videoUrl && (!images || images.length === 0)) {
+        try {
+          const api2 = `https://gawrgura-api.onrender.com/download/tiktok-v2?url=${encodeURIComponent(url)}`;
+          const res2 = await fetch(api2);
+          const json2 = await res2.json();
+          if (json2.status && json2.result.data) {
+            videoUrl = json2.result.data.play;
+            audioUrl = json2.result.data.music;
+            images = json2.result.data.images;
           }
+        } catch (e) {
+          console.error("TikTok API v2 failed:", e);
+        }
+      }
 
-          if (resultado.enlaceMp3) {
-            await sock.sendMessage(msg.chat, {
-              audio: { url: resultado.enlaceMp3.href }
-            }, { quoted: msg });
-          }
+      if (!videoUrl && (!images || images.length === 0)) {
+        await sock.sendMessage(msg.key.remoteJid, { react: { text: '❌', key: msg.key } });
+        return sock.sendMessage(msg.key.remoteJid, { text: '❌ No se pudo descargar el contenido de TikTok.' }, { quoted: msg });
+      }
+
+      if (images && images.length > 0) {
+        for (const img of images) {
+          await sock.sendMessage(msg.key.remoteJid, { image: { url: img.url || img } }, { quoted: msg });
+        }
+      } else if (videoUrl) {
+        await sock.sendMessage(msg.key.remoteJid, {
+          video: { url: videoUrl },
+          mimetype: 'video/mp4'
+        }, { quoted: msg });
+      }
+
+      if (audioUrl) {
+        await sock.sendMessage(msg.key.remoteJid, {
+          audio: { url: audioUrl },
+          mimetype: 'audio/mp4'
+        }, { quoted: msg });
+      }
+
+      await sock.sendMessage(msg.key.remoteJid, { react: { text: '✅', key: msg.key } });
+    } catch (e) {
+      console.error("Error en la descarga de TikTok:", e);
+      await sock.sendMessage(msg.key.remoteJid, { react: { text: '❌', key: msg.key } });
+      await sock.sendMessage(msg.key.remoteJid, { text: '❌ Ocurrió un error al descargar el video.' }, { quoted: msg });
+    }
+  },
+
+  async handleSearch(sock, msg, query) {
+    try {
+      const api = `https://gawrgura-api.onrender.com/search/tiktok?q=${encodeURIComponent(query)}`;
+      const res = await fetch(api);
+      const json = await res.json();
+
+      if (!json.status || !json.result || json.result.length === 0) {
+        await sock.sendMessage(msg.key.remoteJid, { react: { text: '❌', key: msg.key } });
+        return sock.sendMessage(msg.key.remoteJid, { text: '❌ No se encontraron videos para esa búsqueda.' }, { quoted: msg });
+      }
+
+      for (const video of json.result) {
+        const caption = `*Título:* ${video.title}\n*Autor:* ${video.author.nickname}`;
+
+        if (video.play) {
+          await sock.sendMessage(msg.key.remoteJid, {
+            video: { url: video.play },
+            caption: caption,
+            mimetype: 'video/mp4'
+          }, { quoted: msg });
+        }
+
+        if (video.music) {
+          await sock.sendMessage(msg.key.remoteJid, {
+            audio: { url: video.music },
+            mimetype: 'audio/mp4'
+          }, { quoted: msg });
         }
       }
       await sock.sendMessage(msg.key.remoteJid, { react: { text: '✅', key: msg.key } });
     } catch (e) {
+      console.error("Error en la búsqueda de TikTok:", e);
       await sock.sendMessage(msg.key.remoteJid, { react: { text: '❌', key: msg.key } });
-      sock.sendMessage(msg.key.remoteJid, { text: `⚠️ Error: ${e.message}` }, { quoted: msg });
+      await sock.sendMessage(msg.key.remoteJid, { text: '❌ Ocurrió un error al buscar los videos.' }, { quoted: msg });
     }
   }
 };
