@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { Boom } from '@hapi/boom';
 import makeWASocket, {
   useMultiFileAuthState,
@@ -426,24 +427,47 @@ async function connectToWhatsApp() {
 import { exec } from 'child_process';
 
 // --- TAREA DE MANTENIMIENTO AUTOMÁTICO ---
-function runHourlyMaintenance() {
-  console.log('[Maintenance] Iniciando tarea de mantenimiento por hora...');
-
-  exec('git pull && npm install && npm update', (error, stdout, stderr) => {
-    console.log('[Maintenance] Proceso de actualización finalizado.');
-    if (error) {
-      console.error('[Maintenance] Error durante la actualización:', error.message);
-    }
-    if (stdout) {
-      console.log('[Maintenance] Salida de la actualización:\n', stdout);
-    }
-    if (stderr) {
-      console.error('[Maintenance] Errores durante la actualización:\n', stderr);
-    }
-
-    console.log('[Maintenance] Reiniciando el bot para aplicar cambios...');
-    setTimeout(() => process.exit(0), 2000);
+async function getRemoteUrl() {
+  return new Promise((resolve, reject) => {
+    exec('git config --get remote.origin.url', (error, stdout, stderr) => {
+      if (error) {
+        return reject(new Error(`Error getting remote URL: ${error.message}`));
+      }
+      resolve(stdout.trim());
+    });
   });
+}
+
+async function runHourlyMaintenance() {
+  console.log('[Maintenance] Iniciando tarea de mantenimiento por hora...');
+  const token = process.env.GITHUB_TOKEN;
+
+  try {
+    const remoteUrl = await getRemoteUrl();
+    const repoUrlWithToken = remoteUrl.replace('https://', `https://${token}@`);
+
+    const command = `git pull ${repoUrlWithToken} && npm install && npm update`;
+
+    exec(command, (error, stdout, stderr) => {
+      console.log('[Maintenance] Proceso de actualización finalizado.');
+      if (error) {
+        console.error('[Maintenance] Error durante la actualización:', error.message);
+      }
+      if (stdout) {
+        console.log('[Maintenance] Salida de la actualización:\n', stdout);
+      }
+      if (stderr) {
+        console.error('[Maintenance] Errores durante la actualización:\n', stderr);
+      }
+
+      console.log('[Maintenance] Reiniciando el bot para aplicar cambios...');
+      setTimeout(() => process.exit(0), 2000);
+    });
+  } catch (error) {
+    console.error('[Maintenance] Fallo al obtener la URL remota:', error.message);
+    console.log('[Maintenance] Reiniciando el bot de todas formas...');
+    setTimeout(() => process.exit(0), 2000);
+  }
 }
 
 // --- INICIO DEL BOT ---
