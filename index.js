@@ -76,6 +76,10 @@ export const testCache = new Map();
 export const cooldowns = new Map();
 export const commandUsage = new Map();
 
+// Anti-spam data structures
+export const messageTimestamps = new Map();
+export const userBlock = new Map();
+
 
 
 const COOLDOWN_SECONDS = 5;
