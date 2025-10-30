@@ -57,6 +57,19 @@ const profileCommand = {
     profileMessage += `*Defensa:* ${user.defense}\n`;
     profileMessage += `*Velocidad:* ${user.speed}\n\n`;
 
+    // --- Buffs ---
+    if (user.buffs && Object.keys(user.buffs).length > 0) {
+        profileMessage += "✨ *Efectos Activos*\n";
+        const now = Date.now();
+        for (const buff in user.buffs) {
+            if (user.buffs[buff].expires > now) {
+                const timeLeft = Math.ceil((user.buffs[buff].expires - now) / 60000);
+                profileMessage += `*${buff.charAt(0).toUpperCase() + buff.slice(1)}:* +${user.buffs[buff].bonus} (${timeLeft} min restantes)\n`;
+            }
+        }
+        profileMessage += "\n";
+    }
+
     // --- Favorite Waifu ---
     if (user.favoriteWaifuId) {
         const favoriteWaifu = user.harem.find(w => w.id === user.favoriteWaifuId);

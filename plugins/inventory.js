@@ -21,6 +21,13 @@ const equipmentNameMap = {
     mithril_armor: "Armadura de Mithril"
 };
 
+const consumableMap = {
+  health_potion: { name: 'Poción de Salud', emoji: '🧪' },
+  strength_potion: { name: 'Poción de Fuerza', emoji: '💪' },
+  defense_potion: { name: 'Poción de Defensa', emoji: '🛡️' },
+  lucky_elixir: { name: 'Elixir de la Suerte', emoji: '🍀' }
+};
+
 const inventoryCommand = {
   name: "inventory",
   category: "rpg",
@@ -70,21 +77,27 @@ const inventoryCommand = {
         }
     }
 
-    // 2. Display Inventory (Items and Resources)
+    // 2. Display Inventory (Consumables, Items, and Resources)
     if (hasInventory) {
         for (const itemId in user.inventory) {
           const quantity = user.inventory[itemId];
           if (!quantity || quantity === 0) continue;
 
-          const shopItem = shopItems.find(i => i.id === itemId);
-          if (shopItem) {
-            itemsMessage += `*${shopItem.name}* x${quantity}\n`;
-            itemsMessage += `> _${shopItem.description}_\n\n`;
+          if (consumableMap[itemId]) {
+            const consumable = consumableMap[itemId];
+            itemsMessage += `${consumable.emoji} *${consumable.name}:* ${quantity}\n`;
             hasShownItems = true;
           } else if (resourceMap[itemId]) {
             const resource = resourceMap[itemId];
             resourcesMessage += `${resource.emoji} *${resource.name}:* ${quantity}\n`;
             hasShownResources = true;
+          } else {
+            const shopItem = shopItems.find(i => i.id === itemId);
+            if (shopItem) {
+                itemsMessage += `*${shopItem.name}* x${quantity}\n`;
+                itemsMessage += `> _${shopItem.description}_\n\n`;
+                hasShownItems = true;
+            }
           }
         }
     }
