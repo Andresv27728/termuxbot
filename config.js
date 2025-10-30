@@ -8,7 +8,7 @@ const config = {
   botName: "Gawr Gura",
 
   // El nombre del propietario del bot.
-  ownerName: "𝕐𝕆 𝕊𝕆𝕐 𝕐𝕆 WA.ME/573133374132?TEXT=HOLA",
+  ownerName: "wa.me/573133374132?text=hola",
 
   // Activa o desactiva el sistema anti-spam.
   antiSpamEnabled: true,
