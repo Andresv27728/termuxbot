@@ -1,93 +1,130 @@
 import { readUsersDb, writeUsersDb } from '../lib/database.js';
-import { shopItems } from '../lib/shop-items.js';
+import { initializeRpgUser } from '../lib/utils.js';
 
+// --- Item Effects Configuration ---
+const itemEffects = {
+  health_potion: {
+    name: "Poción de Salud",
+    description: "Restaura 25 HP.",
+    action: (user) => {
+      const healAmount = 25;
+      const maxHp = user.max_hp || 100;
+      const currentHp = user.hp;
+
+      if (currentHp >= maxHp) {
+        return { success: false, message: "Ya tienes la salud al máximo." };
+      }
+
+      const newHp = Math.min(maxHp, currentHp + healAmount);
+      const healedFor = newHp - currentHp;
+      user.hp = newHp;
+
+      return { success: true, message: `Has usado una ${itemEffects.health_potion.name} y has restaurado ${healedFor} HP. Salud actual: ${user.hp}/${maxHp}.` };
+    },
+  },
+  strength_potion: {
+    name: "Poción de Fuerza",
+    description: "Aumenta tu ataque en 10 durante 5 minutos.",
+    action: (user) => {
+      const now = Date.now();
+      const buffDuration = 5 * 60 * 1000; // 5 minutes
+      user.buffs = user.buffs || {};
+      user.buffs.strength = {
+        bonus: 10,
+        expires: now + buffDuration,
+      };
+      return { success: true, message: `¡Bebiste una ${itemEffects.strength_potion.name}! Tu ataque ha aumentado en 10 durante 5 minutos.` };
+    },
+  },
+  defense_potion: {
+    name: "Poción de Defensa",
+    description: "Aumenta tu defensa en 10 durante 5 minutos.",
+    action: (user) => {
+      const now = Date.now();
+      const buffDuration = 5 * 60 * 1000; // 5 minutes
+      user.buffs = user.buffs || {};
+      user.buffs.defense = {
+        bonus: 10,
+        expires: now + buffDuration,
+      };
+      return { success: true, message: `¡Bebiste una ${itemEffects.defense_potion.name}! Tu defensa ha aumentado en 10 durante 5 minutos.` };
+    },
+  },
+  lucky_elixir: {
+    name: "Elixir de la Suerte",
+    description: "Aumenta tu suerte para encontrar objetos raros durante 10 minutos.",
+    action: (user) => {
+      const now = Date.now();
+      const buffDuration = 10 * 60 * 1000; // 10 minutes
+      user.buffs = user.buffs || {};
+      user.buffs.luck = {
+        bonus: 20, // Example luck bonus
+        expires: now + buffDuration,
+      };
+      return { success: true, message: `¡Bebiste un ${itemEffects.lucky_elixir.name}! Tu suerte ha aumentado durante 10 minutos.` };
+    },
+  },
+};
+
+
+// --- Helper Functions ---
+function getUser(senderId) {
+  const usersDb = readUsersDb();
+  return usersDb[senderId];
+}
+
+function saveUser(senderId, userData) {
+  const usersDb = readUsersDb();
+  usersDb[senderId] = userData;
+  writeUsersDb(usersDb);
+}
+
+
+// --- Command Logic ---
 const useCommand = {
   name: "use",
   category: "rpg",
-  description: "Usa un objeto de tu inventario. Uso: `use <id_del_objeto>`",
+  description: "Usa un objeto de tu inventario.",
   aliases: ["usar"],
 
   async execute({ sock, msg, args }) {
     const senderId = msg.sender;
-    const usersDb = readUsersDb();
-    const user = usersDb[senderId];
-    const itemId = args[0]?.toLowerCase();
+    const user = getUser(senderId);
 
     if (!user) {
-      return sock.sendMessage(msg.key.remoteJid, { text: "No estás registrado. Usa `reg`." }, { quoted: msg });
+      return sock.sendMessage(msg.key.remoteJid, { text: "No estás registrado. Usa `reg` para empezar." }, { quoted: msg });
     }
 
-    if (!itemId) {
-      return sock.sendMessage(msg.key.remoteJid, { text: "Por favor, especifica el ID del objeto que quieres usar. Revisa tu `inventory`." }, { quoted: msg });
+    initializeRpgUser(user);
+
+    const itemToUse = args[0]?.toLowerCase();
+
+    if (!itemToUse) {
+      return sock.sendMessage(msg.key.remoteJid, { text: "Debes especificar qué objeto quieres usar. Ejemplo: `.use health_potion`" }, { quoted: msg });
     }
 
-    if (!user.inventory || !user.inventory[itemId] || user.inventory[itemId] <= 0) {
-      return sock.sendMessage(msg.key.remoteJid, { text: `No tienes "${itemId}" en tu inventario.` }, { quoted: msg });
+    if (!user.inventory || (user.inventory[itemToUse] || 0) <= 0) {
+      return sock.sendMessage(msg.key.remoteJid, { text: `No tienes ${itemToUse} en tu inventario.` }, { quoted: msg });
     }
 
-    const item = shopItems.find(i => i.id === itemId);
-    if (!item) {
-        return sock.sendMessage(msg.key.remoteJid, { text: "Ocurrió un error, el objeto no se encuentra en la lista de objetos." }, { quoted: msg });
+    const effect = itemEffects[itemToUse];
+    if (!effect || !effect.action) {
+      return sock.sendMessage(msg.key.remoteJid, { text: "Este objeto no se puede usar." }, { quoted: msg });
     }
 
-    let message = "";
-    let consumeItem = true; // La mayoría de los objetos se consumen
+    // Ejecutar la acción del objeto
+    const result = effect.action(user);
 
-    // Lógica de efectos de los objetos
-    switch (itemId) {
-      case 'pocion_vida':
-        if (user.hp >= user.maxHp) {
-          return sock.sendMessage(msg.key.remoteJid, { text: "Ya tienes la salud al máximo." }, { quoted: msg });
-        }
-        const healAmount = Math.floor(user.maxHp * 0.5); // Cura 50%
-        user.hp = Math.min(user.maxHp, user.hp + healAmount);
-        message = `Usaste una *Poción de Vida Menor* y recuperaste *${healAmount} HP*. Salud actual: ${user.hp}/${user.maxHp} ❤️`;
-        break;
-
-      case 'trebol':
-      case 'suerte': // Aceptar el ID antiguo también
-        const luckDuration = 1 * 60 * 60 * 1000; // 1 hora
-        user.effects.suerte = Date.now() + luckDuration;
-        message = `🍀 Usaste un *Trébol de 4 Hojas*. ¡Tu suerte ha aumentado por 1 hora!`;
-        break;
-
-      case 'elixir':
-        const xpBoostDuration = 30 * 60 * 1000; // 30 minutos
-        user.effects.xp_boost = Date.now() + xpBoostDuration;
-        message = `🧠 Usaste un *Elixir de Sabiduría*. ¡Ganas el doble de experiencia por 30 minutos!`;
-        break;
-
-      case 'galleta':
-        const fortunes = ["Un gran viaje te espera.", "Cuidado con los goblins con sombrero.", "Pronto recibirás una ganancia inesperada.", "El número 7 será tu aliado hoy."];
-        message = `Abres la galleta de la fortuna y lees: "${fortunes[Math.floor(Math.random() * fortunes.length)]}"`;
-        break;
-
-      case 'roca':
-        message = `Miras fijamente a tu *Roca Mascota*. Ella te devuelve la mirada. Ha sido un momento profundo.`;
-        consumeItem = false; // No se consume la roca mascota
-        break;
-
-      case 'cofre':
-        const min = item.price * 0.5;
-        const max = item.price * 2.0;
-        const amount = Math.floor(Math.random() * (max - min + 1)) + min;
-        user.coins += amount;
-        message = `¡Abriste el cofre y encontraste *${amount.toLocaleString()} monedas*!`;
-        break;
-
-      default:
-        return sock.sendMessage(msg.key.remoteJid, { text: `El objeto "${item.name}" no es consumible o su efecto aún no ha sido implementado.` }, { quoted: msg });
+    if (result.success) {
+      // Si se usó con éxito, descontar del inventario
+      user.inventory[itemToUse]--;
+      if (user.inventory[itemToUse] <= 0) {
+        delete user.inventory[itemToUse]; // Limpiar si se acaban
+      }
+      saveUser(senderId, user);
     }
 
-    if (consumeItem) {
-        user.inventory[itemId]--;
-        if (user.inventory[itemId] <= 0) {
-            delete user.inventory[itemId];
-        }
-    }
-
-    writeUsersDb(usersDb);
-    await sock.sendMessage(msg.key.remoteJid, { text: message }, { quoted: msg });
+    return sock.sendMessage(msg.key.remoteJid, { text: result.message }, { quoted: msg });
   }
 };
 
