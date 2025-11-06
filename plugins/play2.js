@@ -8,8 +8,7 @@ const youtubeRegexID =
 const play2Command = {
   name: "play2",
   category: "descargas",
-  description:
-    "Busca y descarga un video de YouTube y lo envía como video.",
+  description: "Busca y descarga un video de YouTube y lo envía como video.",
   aliases: ["ytmp4"],
 
   async execute({ sock, msg, args }) {
@@ -18,7 +17,7 @@ const play2Command = {
       if (!text) {
         return sock.sendMessage(
           msg.key.remoteJid,
-          { text: "Por favor, ingresa el nombre o link del video." },
+          { text: "🔎 Ingresa el nombre o link del video que deseas descargar." },
           { quoted: msg }
         );
       }
@@ -27,27 +26,27 @@ const play2Command = {
         react: { text: "⌛", key: msg.key },
       });
 
-      let videoIdToFind = text.match(youtubeRegexID) || null;
+      let videoIdMatch = text.match(youtubeRegexID);
       let searchResult = await yts(
-        videoIdToFind === null
-          ? text
-          : "https://youtu.be/" + videoIdToFind[1]
+        videoIdMatch ? `https://youtu.be/${videoIdMatch[1]}` : text
       );
 
       let videoInfo = null;
-      if (videoIdToFind) {
-        const videoId = videoIdToFind[1];
+
+      if (videoIdMatch) {
+        const videoId = videoIdMatch[1];
         videoInfo =
-          searchResult.all.find((item) => item.videoId === videoId) ||
-          searchResult.videos.find((item) => item.videoId === videoId);
+          searchResult.all.find((v) => v.videoId === videoId) ||
+          searchResult.videos.find((v) => v.videoId === videoId);
       }
+
       videoInfo =
         videoInfo ||
         searchResult.all?.[0] ||
         searchResult.videos?.[0] ||
-        searchResult;
+        null;
 
-      if (!videoInfo || videoInfo.length === 0) {
+      if (!videoInfo) {
         await sock.sendMessage(msg.key.remoteJid, {
           react: { text: "❌", key: msg.key },
         });
@@ -60,36 +59,36 @@ const play2Command = {
 
       const { title, thumbnail, url, timestamp, author, views } = videoInfo;
 
-      // 🔹 Enviar vista previa con la miniatura
+      // 🔹 Vista previa
       await sock.sendMessage(
         msg.key.remoteJid,
         {
           image: { url: thumbnail },
-          caption: `🎵 *${title}*\n👤 ${author?.name || "Desconocido"}\n🕒 ${timestamp || "Duración desconocida"}\n👁️ ${views?.toLocaleString() || "N/A"} vistas\n\n_Descargando video..._`,
+          caption: `🎬 *${title}*\n👤 ${author?.name || "Desconocido"}\n🕒 ${timestamp || "Duración desconocida"}\n👁️ ${views?.toLocaleString() || "N/A"} vistas\n\n_Descargando video..._`,
         },
         { quoted: msg }
       );
 
-      let downloadUrl;
+      let downloadUrl = null;
       let videoTitle = title;
       let sourceApi = "";
 
-      // Intentar con la primera API
+      // 🔹 API 1: /ytdl
       try {
         const ytdlUrl = `https://gawrgura-api.onrender.com/download/ytdl?url=${encodeURIComponent(url)}`;
         const ytdlRes = await fetch(ytdlUrl);
         const ytdlData = await ytdlRes.json();
 
-        if (ytdlData.status && ytdlData.result.mp4) {
+        if (ytdlData.status && ytdlData.result?.mp4) {
           downloadUrl = ytdlData.result.mp4;
           videoTitle = ytdlData.result.title || title;
           sourceApi = "gawrgura-api (ytdl)";
         }
-      } catch (e) {
-        console.error("Error con la API ytdl:", e);
+      } catch (err) {
+        console.error("❌ Error con la API ytdl:", err.message);
       }
 
-      // Si la primera API falla, intentar con la segunda
+      // 🔹 API 2: /ytmp4 (si la primera falla)
       if (!downloadUrl) {
         try {
           const ytmp4Url = `https://gawrgura-api.onrender.com/download/ytmp4?url=${encodeURIComponent(url)}`;
@@ -100,8 +99,8 @@ const play2Command = {
             downloadUrl = ytmp4Data.result;
             sourceApi = "gawrgura-api (ytmp4)";
           }
-        } catch (e) {
-          console.error("Error con la API ytmp4:", e);
+        } catch (err) {
+          console.error("❌ Error con la API ytmp4:", err.message);
         }
       }
 
@@ -111,22 +110,21 @@ const play2Command = {
         });
         return sock.sendMessage(
           msg.key.remoteJid,
-          { text: "No se pudo descargar el video desde ninguna de las APIs." },
+          { text: "⚠️ No se pudo descargar el video desde ninguna de las APIs." },
           { quoted: msg }
         );
       }
 
-      const videoResponse = await axios.get(downloadUrl, {
-        responseType: "arraybuffer",
-      });
-      const videoBuffer = videoResponse.data;
+      // 🔹 Descargar video
+      const response = await axios.get(downloadUrl, { responseType: "arraybuffer" });
+      const buffer = response.data;
 
       await sock.sendMessage(
         msg.key.remoteJid,
         {
-          video: videoBuffer,
+          video: buffer,
           mimetype: "video/mp4",
-          caption: `${videoTitle}\n\n🔗 *Fuente:* ${sourceApi}`,
+          caption: `🎥 *${videoTitle}*\n\n✅ Descargado desde: ${sourceApi}`,
         },
         { quoted: msg }
       );
@@ -139,9 +137,9 @@ const play2Command = {
       await sock.sendMessage(msg.key.remoteJid, {
         react: { text: "❌", key: msg.key },
       });
-      return sock.sendMessage(
+      await sock.sendMessage(
         msg.key.remoteJid,
-        { text: `Ocurrió un error inesperado: ${error.message}` },
+        { text: `Ocurrió un error: ${error.message}` },
         { quoted: msg }
       );
     }
