@@ -70,27 +70,51 @@ const play2Command = {
         { quoted: msg }
       );
 
-      // 🔹 Nueva API de Adonix
-      const apiUrl = `https://api-adonix.ultraplus.click/download/ytmp4?apikey=gawrgurabot&url=${encodeURIComponent(
-        url
-      )}`;
+      let downloadUrl;
+      let videoTitle = title;
+      let sourceApi = "";
 
-      const res = await fetch(apiUrl);
-      const data = await res.json();
+      // Intentar con la primera API
+      try {
+        const ytdlUrl = `https://gawrgura-api.onrender.com/download/ytdl?url=${encodeURIComponent(url)}`;
+        const ytdlRes = await fetch(ytdlUrl);
+        const ytdlData = await ytdlRes.json();
 
-      if (!data.status || !data.data?.url) {
+        if (ytdlData.status && ytdlData.result.mp4) {
+          downloadUrl = ytdlData.result.mp4;
+          videoTitle = ytdlData.result.title || title;
+          sourceApi = "gawrgura-api (ytdl)";
+        }
+      } catch (e) {
+        console.error("Error con la API ytdl:", e);
+      }
+
+      // Si la primera API falla, intentar con la segunda
+      if (!downloadUrl) {
+        try {
+          const ytmp4Url = `https://gawrgura-api.onrender.com/download/ytmp4?url=${encodeURIComponent(url)}`;
+          const ytmp4Res = await fetch(ytmp4Url);
+          const ytmp4Data = await ytmp4Res.json();
+
+          if (ytmp4Data.status && ytmp4Data.result) {
+            downloadUrl = ytmp4Data.result;
+            sourceApi = "gawrgura-api (ytmp4)";
+          }
+        } catch (e) {
+          console.error("Error con la API ytmp4:", e);
+        }
+      }
+
+      if (!downloadUrl) {
         await sock.sendMessage(msg.key.remoteJid, {
           react: { text: "❌", key: msg.key },
         });
         return sock.sendMessage(
           msg.key.remoteJid,
-          { text: "No se pudo descargar el video desde la API de Adonix." },
+          { text: "No se pudo descargar el video desde ninguna de las APIs." },
           { quoted: msg }
         );
       }
-
-      const downloadUrl = data.data.url;
-      const videoTitle = data.data.title || title;
 
       const videoResponse = await axios.get(downloadUrl, {
         responseType: "arraybuffer",
@@ -102,7 +126,7 @@ const play2Command = {
         {
           video: videoBuffer,
           mimetype: "video/mp4",
-          caption: `${videoTitle}\n\n🔗 *Fuente:* Adonix`,
+          caption: `${videoTitle}\n\n🔗 *Fuente:* ${sourceApi}`,
         },
         { quoted: msg }
       );
