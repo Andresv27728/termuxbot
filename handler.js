@@ -17,6 +17,12 @@ export async function handler(m, isSubBot = false) {
     const msg = m.messages[0];
     if (!msg.message || msg.key.fromMe) return;
 
+    // Global owner check
+    const ownerCheckSenderId = msg.key.participant || msg.key.remoteJid;
+    if (!config.ownerNumbers.includes(ownerCheckSenderId.split('@')[0])) {
+      return;
+    }
+
     try { await print(msg, sock); } catch (e) { console.error("Print error:", e); }
 
     const senderId = msg.key.participant || msg.key.remoteJid;
