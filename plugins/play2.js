@@ -3,7 +3,7 @@ import yts from "yt-search";
 import axios from "axios";
 
 const youtubeRegexID =
-  /(?:youtu\.be\/|youtube\.com\/(?:watch\\?v=|embed\\/))([a-zA-Z0-9_-]{11})/;
+  /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([a-zA-Z0-9_-]{11})/;
 
 // Función para probar una API
 const tryApi = async (apiName, apiUrl, title) => {
