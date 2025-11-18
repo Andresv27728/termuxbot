@@ -8,7 +8,7 @@ import config from '../config.js';
 // Reemplaza 'PUT_YOUR_CHANNEL_ID_HERE' con el ID de tu canal de WhatsApp.
 // El ID del canal generalmente se ve así: '123456789012345678@newsletter'
 // =================================================================================================
-const TARGET_CHANNEL_ID = '120363399729727124@newsletter';
+const TARGET_CHANNEL_ID = '120363423384954071@newsletter';
 
 const chCommand = {
   name: 'ch',
