@@ -18,7 +18,7 @@
     "@hapi/boom": "^10.0.1",
     "@mrnima/facebook-downloader": "^1.0.0",
     "@vitalets/google-translate-api": "^9.2.1",
-    "@whiskeysockets/baileys": "6.7.21",
+    "@whiskeysockets/baileys": "7.0.0-rc.8",
     "aptoide-scraper": "^1.0.1",
     "awesome-phonenumber": "^7.5.0",
     "axios": "^1.12.2",
