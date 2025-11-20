@@ -1,4 +1,4 @@
-import { addVideoToQueue } from '../lib/db.js';
+import { addVideoToQueue, isUrlInQueue } from '../lib/db.js';
 
 const TARGET_CHANNEL_ID = '120363423384954071@newsletter';
 
@@ -19,6 +19,9 @@ const chCommand = {
     }
 
     try {
+      if (await isUrlInQueue(url)) {
+        return sock.sendMessage(msg.key.remoteJid, { text: '❌ Este video ya está en la cola.' }, { quoted: msg });
+      }
       await addVideoToQueue(url);
       await sock.sendMessage(msg.key.remoteJid, { text: '✅ Video añadido a la cola de envío.' }, { quoted: msg });
     } catch (error) {
