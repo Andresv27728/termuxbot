@@ -474,10 +474,15 @@ async function runHourlyMaintenance() {
   }
 }
 
+import { initDatabase } from './lib/db.js';
+import { startScheduler } from './lib/scheduler.js';
+
 // --- INICIO DEL BOT ---
 (async () => {
   await loadCommands();
+  await initDatabase();
   const sock = await connectToWhatsApp();
+  startScheduler(sock);
 
   if (sock) {
     // Iniciar la tarea de mantenimiento una vez que el bot esté conectado.
